@@ -7,9 +7,12 @@ from PIL import Image, ImageTk
 from serial.tools import list_ports
 
 controller = ControllerE220()
+ports = []
 
 def load_com_ports(com_combo):
-    ports = list_ports.comports()
+    new_ports = list_ports.comports()
+    ports.clear()
+    ports.extend(new_ports)
     com_names = [p.device for p in ports]
     com_combo['values'] = com_names
     if len(com_names):
@@ -44,6 +47,7 @@ def load_icon(icon_size):
 root = Tk()
 root.title("E220 LoRa GUI")
 root.geometry('500x250')
+root.minsize(500, 250)
 
 mainframe = ttk.Frame(root, padding="3 3 12 12")
 mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
@@ -59,7 +63,7 @@ baud_rate = ttk.Combobox(mainframe, width=13)
 baud_rate['values'] = [9600, 19200, 38400, 57600, 115200]
 baud_rate.set(115200)
 baud_rate.grid(column=1, row=0)
-ttk.Button(mainframe, text="Reload", command=lambda: load_com_ports(com_port_combo)).grid(column=2, row=0)
+ttk.Button(mainframe, text="Reload ports", command=lambda: load_com_ports(com_port_combo)).grid(column=2, row=0)
 cnt_button = ttk.Button(mainframe, text="Connect", command=lambda: connect(ports, com_port_combo.current()))
 cnt_button.grid(column=3, row=0)
 ports = load_com_ports(com_port_combo)
@@ -95,8 +99,8 @@ def cmd_get_config():
 ttk.Button(mainframe, text="Set config", command=cmd_set_config).grid(column=1, row=5)
 ttk.Button(mainframe, text="Get config", command=cmd_get_config).grid(column=2, row=5)
 
-msg_frame = ttk.Frame(mainframe, height=20, relief=GROOVE)
-msg_frame.grid(column=0, row=6, columnspan=6)
+msg_frame = ttk.Frame(mainframe, height=20, relief=GROOVE, borderwidth=2)
+msg_frame.grid(column=0, row=6, columnspan=2, sticky="ew")
 rssi_var = StringVar(value='---')
 seq_num_var = StringVar(value='---')
 ttk.Label(msg_frame, text="RSSI:").pack(side=LEFT)

@@ -9,23 +9,7 @@ from e220_config import (AirSpeed, CmdID, Command, Config, MessageRSSI,
                          PackedStructure, PacketHeader, PacketType, Response,
                          ResponseStatus, TxPower, UARTSpeed)
 from serial import Serial
-from serial.tools import list_ports
 
-
-def load_com_ports(com_combo):
-    ports = list_ports.comports()
-    com_names = [p.device for p in ports]
-    com_combo['values'] = com_names
-    if len(com_names):
-        com_combo.set(com_names[0])
-        # com_descrip.set(ports[0].description)
-        # cnt_button['state'] = NORMAL
-    else:
-        com_combo.set('')
-        # com_descrip.set('')
-        # cnt_button['state'] = DISABLED
-
-    return ports
 
 class ControllerE220:
 
@@ -205,20 +189,7 @@ class ControllerE220:
             time.sleep(0.01)
             if time.time() - t0 > timeout:
                 raise Exception('Timeout waiting for response')
-        # data = bytearray(self.ser.read(2))
-        # print(data)
-        # if int.from_bytes(data, 'little') == 0xAAAA:
-        #     data.extend(self.ser.read(sizeof(Response) - 2))
-        #     resp = Response.from_buffer_copy(data)
-        #     if resp.status != ResponseStatus.OK:
-        #         print('Error getting response')
-        #     return resp.status == ResponseStatus.OK
 
-        # if not self.connected:
-        #     return
-        # resp = self.ser.read_until(b'\r\n')
-        # print(resp)
-        # return resp
 if __name__ == '__main__':
     controller = ControllerE220()
     controller.connect('COM5', 115200)
