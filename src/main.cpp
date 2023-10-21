@@ -1,84 +1,87 @@
 #include <Arduino.h>
-#define FREQUENCY_868
-#define E220_30
-#include <LoRa_E220.h>
+#include "E220.h"
+#include "config_e220.h"
+#include "command.h"
 
-#define AUX_PIN 25
-#define M0_PIN 15
-#define M1_PIN 2
-#define TX_PIN 22
-#define RX_PIN 17
-
+//Define the pins we need to use later to create the object
+#define AUX 25
+#define M0 15
+#define M1 2
+#define TX_PIN 17
+#define RX_PIN 22
 #define DESTINATION_ADDL 3
-#define ROOM "Kitchen"
 
-#define ENABLE_RSSI true
-#define LoRa_E220_DEBUG
+E220 radioModule(&Serial1, M0, M1, AUX);
 
-LoRa_E220 e220ttl(TX_PIN, RX_PIN, &Serial1, AUX_PIN, M0_PIN, M1_PIN, UART_BPS_RATE_9600); //  RX AUX M0 M1
-
-struct Message {
-	char type[5];
-	char message[8];
+typedef struct  __attribute__((packed)){
 	float temperature;
-};
+	uint32_t seq_num;
+} Message_t;
 
-void setup() {
-    Serial.begin(9600);
-    delay(500);
+typedef struct __attribute__((packed)){
+    Message_t msg;
+    uint8_t rssi;
+} MessageRSSI_t;
 
-    // Startup all pins and UART
-    e220ttl.begin();
-    ResponseStructContainer rc = e220ttl.getModuleInformation();
-    Serial.println(rc.status.getResponseDescription());
-    if (rc.status.code != E220_SUCCESS){
-    	Serial.println("Error on startup");
-    	while(1);
-    }
-    rc = e220ttl.getConfiguration();
-    Configuration configuration = *(Configuration*) rc.data;
-    Serial.println("Hi, I'm going to send message!");
+uint32_t seq_num = 0;
+size_t t0 = 0;
 
-    struct	Message message = {"TEMP", ROOM, 19.2};
-
-    // Send message
-    ResponseStatus rs = e220ttl.sendFixedMessage(0, DESTINATION_ADDL, 23, &message, sizeof(Message));
-    // Check If there is some problem of succesfully send
-    Serial.println(rs.getResponseDescription());
+bool e220_default_config(){
+    bool success = true;
+    success &= radioModule.setAirDataRate(E220_AIR_DATA_RATE, true);
+    success &= radioModule.setBaud(E220_BAUD_RATE, true);
+    success &= radioModule.setChannel(E220_CHANNEL, true);
+    success &= radioModule.setPower(E220_POWER, true);
+    success &= radioModule.setSubPacketSize(E220_SUB_PACKET_SIZE, true);
+    success &= radioModule.setParity(E220_UART_PARITY, true);
+    success &= radioModule.setRSSIByteToggle(E220_RSSI_ENABLE, true);
+    success &= radioModule.setRadioMode(E220_MODE);
+    success &= radioModule.setFixedTransmission(true, true);
+    return success;
 }
 
-void loop() {
-	// If something available
-  if (e220ttl.available()>1) {
-	  // read the String message
-#ifdef ENABLE_RSSI
-		ResponseStructContainer rsc = e220ttl.receiveMessageRSSI(sizeof(Message));
-#else
-		ResponseStructContainer rsc = e220ttl.receiveMessage(sizeof(Message));
-#endif
+bool read_packet_rssi(MessageRSSI_t *packet) {
+    size_t read = Serial2.readBytes((uint8_t*)packet, sizeof(MessageRSSI_t));
+    if (read != sizeof(MessageRSSI_t)) {
+        return false;
+    }
+    return true;
+}
 
-	// Is something goes wrong print error
-	if (rsc.status.code!=1){
-		Serial.println(rsc.status.getResponseDescription());
-	}else{
-		// Print the data received
-		Serial.println(rsc.status.getResponseDescription());
-		struct Message message = *(Message*) rsc.data;
-		Serial.println(message.type);
-		Serial.println(message.message);
-		Serial.println(message.temperature);
+void setup(){
+    //begin all of our UART connections
+    Serial.begin(115200);
+    Serial1.begin(E220_SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
 
-#ifdef ENABLE_RSSI
-		Serial.print("RSSI: "); Serial.println(rsc.rssi, DEC);
-#endif
-	}
-  }
-    struct Message message = { "TEMP", ROOM, 0 };
-    message.temperature = 69;
+    //initialise the module and check it communicates with us, else loop and keep trying
+    while(!radioModule.init()){
+        delay(500);
+    }
+    bool ret = e220_default_config();
+    if (!ret) {
+        Serial.println("Failed to configure");
+    }
+    t0 = millis();
+}
 
-    // Send message
-    ResponseStatus rs = e220ttl.sendFixedMessage(0, DESTINATION_ADDL, 23, &message, sizeof(Message));
-    // Check If there is some problem of succesfully send
-    Serial.println(rs.getResponseDescription());
-    delay(1000);
+
+void loop(){
+    MessageRSSI_t packet = {0};
+    size_t t1 = millis();
+    if (t1 - t0 > 1000) {
+        packet.msg.seq_num = seq_num++;
+        radioModule.sendFixedData(DESTINATION_ADDL, E220_CHANNEL, (uint8_t*)&packet.msg, sizeof(Message_t), true);
+        t0 = t1;
+    } 
+
+    bool ret = parse_cmd(radioModule);
+    if(Serial2.available()){
+        if(read_packet_rssi(&packet)){
+            send_packet((uint8_t*)&packet, sizeof(MessageRSSI_t), PACKET_TYPE_DATA);
+            // Serial.print("Send time: ");
+            // Serial.println(t1 - t0);
+        } else {
+            // Serial.println("Failed to read packet");
+        }
+    }
 }
