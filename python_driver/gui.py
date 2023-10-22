@@ -8,6 +8,8 @@ from serial.tools import list_ports
 
 controller = ControllerE220()
 ports = []
+lost_packets = 0
+last_seq_num = None
 
 def load_com_ports(com_combo):
     new_ports = list_ports.comports()
@@ -27,22 +29,21 @@ def load_com_ports(com_combo):
     return ports
 
 def connect(ports, index):
+    global lost_packets
     if cnt_button['text'] == 'Connect':
         if index < 0:
             print('No port detected!')
             return
-        controller.connect(ports[index].device, int(baud_rate.get()))
-        cnt_button['text'] = 'Disconnect'
+        try:
+            controller.connect(ports[index].device, int(baud_rate.get()))
+            lost_packets = 0
+            cnt_button['text'] = 'Disconnect'
+        except Exception as e:
+            print(e)
 
     elif cnt_button['text'] == 'Disconnect':
         controller.disconnect()
         cnt_button['text'] = 'Connect'
-
-def load_icon(icon_size):
-    im = Image.open("arrow.png")
-    im = im.resize(icon_size, Image.ANTIALIAS)
-    img = ImageTk.PhotoImage(im)
-    return img
 
 root = Tk()
 root.title("E220 LoRa GUI")
@@ -103,16 +104,25 @@ msg_frame = ttk.Frame(mainframe, height=20, relief=GROOVE, borderwidth=2)
 msg_frame.grid(column=0, row=6, columnspan=2, sticky="ew")
 rssi_var = StringVar(value='---')
 seq_num_var = StringVar(value='---')
+lost_packets_var = StringVar(value='---')
 ttk.Label(msg_frame, text="RSSI:").pack(side=LEFT)
 ttk.Label(msg_frame, textvariable=rssi_var).pack(side=LEFT)
 ttk.Label(msg_frame, text="Seq num:").pack(side=LEFT)
 ttk.Label(msg_frame, textvariable=seq_num_var).pack(side=LEFT)
+ttk.Label(msg_frame, text="Lost packets:").pack(side=LEFT)
+ttk.Label(msg_frame, textvariable=lost_packets_var).pack(side=LEFT)
 # update rssi_var in a thread using controller.get_data()
 def update_rssi():
+    global lost_packets, last_seq_num
     packet = controller.get_data(MessageRSSI, timeout=0)
     if packet is not None:
         rssi_var.set(packet.rssi)
         seq_num_var.set(packet.msg.seq_num)
+        if last_seq_num is not None and packet.msg.seq_num != last_seq_num + 1:
+            lost_packets += 1
+            print(f"Lost {lost_packets} packets")
+        last_seq_num = packet.msg.seq_num
+        lost_packets_var.set(lost_packets)
     root.after(100, update_rssi)
 
 update_rssi()

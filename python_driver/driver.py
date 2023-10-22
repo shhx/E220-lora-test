@@ -3,7 +3,7 @@ from collections import deque
 from ctypes import sizeof
 from itertools import islice
 from threading import Thread
-from typing import Type
+from typing import Optional, Type
 
 from e220_config import (AirSpeed, CmdID, Command, Config, MessageRSSI,
                          PackedStructure, PacketHeader, PacketType, Response,
@@ -23,16 +23,13 @@ class ControllerE220:
         self._parsed_packets = deque()
 
     def connect(self, port: str, baudrate: int = 9600):
-        try:
-            self.port = port
-            self.ser = Serial(port=self.port, baudrate=baudrate, timeout=1)
-            self.ser.flush()
-            self.ser.read_all()
-            self._rx_thread = Thread(target=self.recv_thread)
-            self.connected = True
-            self._rx_thread.start()
-        except Exception as e:
-            print(e)
+        self.port = port
+        self.ser = Serial(port=self.port, baudrate=baudrate, timeout=1)
+        self.ser.flush()
+        self.ser.read_all()
+        self._rx_thread = Thread(target=self.recv_thread)
+        self.connected = True
+        self._rx_thread.start()
 
     def recv_thread(self):
         print('Starting recv thread')
@@ -129,7 +126,7 @@ class ControllerE220:
         if status != ResponseStatus.OK:
             raise Exception('Error setting air speed')
 
-    def get_config(self) -> Config | None:
+    def get_config(self) -> Optional[Config]:
         if not self.connected:
             return
         cmd = Command()
@@ -157,7 +154,7 @@ class ControllerE220:
         self._parsed_packets.clear()
         self.ser.close()
 
-    def get_data(self, packet_type: Type[PackedStructure], timeout: float = 0) -> PackedStructure | None:
+    def get_data(self, packet_type: Type[PackedStructure], timeout: float = 0) -> Optional[PackedStructure]:
         if not self.connected:
             return None
         t0 = time.time()

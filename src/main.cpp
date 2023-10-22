@@ -60,7 +60,10 @@ void setup(){
     bool ret = e220_default_config();
     if (!ret) {
         Serial.println("Failed to configure");
+    } else {
+        Serial.println("Configured");
     }
+    radioModule.readBoardData();
     t0 = millis();
 }
 
