@@ -198,7 +198,7 @@ bool E220::setAddress(unsigned int newAddress, bool permanent) {
         return false;
     }
     uint16_t convAddress = newAddress;
-    uint8_t addressH = ((convAddress & 0xFFFF) >> 8);
+    uint8_t addressH = (convAddress >> 8) & 0xFF;
     uint8_t addressL = (convAddress & 0xFF);
     uint8_t addresses[] = {addressH, addressL};
     if(permanent){

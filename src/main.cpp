@@ -4,14 +4,19 @@
 #include "command.h"
 
 //Define the pins we need to use later to create the object
-#define AUX 25
-#define M0 15
-#define M1 2
-#define TX_PIN 17
-#define RX_PIN 22
-#define DESTINATION_ADDL 3
+// t-display PINS
+// #define AUX 25
+// #define M0 15
+// #define M1 2
+// #define TX_PIN 17
+// #define RX_PIN 22
 
-E220 radioModule(&Serial1, M0, M1, AUX);
+#define AUX 6
+#define M0 8
+#define M1 7
+
+
+E220 radioModule(&Serial0, M0, M1, AUX);
 
 typedef struct  __attribute__((packed)){
 	float temperature;
@@ -28,6 +33,7 @@ size_t t0 = 0;
 
 bool e220_default_config(){
     bool success = true;
+    success &= radioModule.setAddress(E220_ADDRESS, true);
     success &= radioModule.setAirDataRate(E220_AIR_DATA_RATE, true);
     success &= radioModule.setBaud(E220_BAUD_RATE, true);
     success &= radioModule.setChannel(E220_CHANNEL, true);
@@ -41,7 +47,7 @@ bool e220_default_config(){
 }
 
 bool read_packet_rssi(MessageRSSI_t *packet) {
-    size_t read = Serial2.readBytes((uint8_t*)packet, sizeof(MessageRSSI_t));
+    size_t read = Serial0.readBytes((uint8_t*)packet, sizeof(MessageRSSI_t));
     if (read != sizeof(MessageRSSI_t)) {
         return false;
     }
@@ -50,8 +56,9 @@ bool read_packet_rssi(MessageRSSI_t *packet) {
 
 void setup(){
     //begin all of our UART connections
+    Serial0.begin(E220_SERIAL_SPEED);
     Serial.begin(115200);
-    Serial1.begin(E220_SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
+    // Serial1.begin(E220_SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
 
     //initialise the module and check it communicates with us, else loop and keep trying
     while(!radioModule.init()){
@@ -78,13 +85,13 @@ void loop(){
     } 
 
     bool ret = parse_cmd(radioModule);
-    if(Serial2.available()){
+    if(Serial0.available()){
         if(read_packet_rssi(&packet)){
             send_packet((uint8_t*)&packet, sizeof(MessageRSSI_t), PACKET_TYPE_DATA);
             // Serial.print("Send time: ");
             // Serial.println(t1 - t0);
         } else {
-            // Serial.println("Failed to read packet");
+            Serial.println("Failed to read packet");
         }
     }
 }

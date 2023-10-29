@@ -3,6 +3,8 @@
 
 #include "E220.h"
 
+#define E220_ADDRESS          3
+#define DESTINATION_ADDL      2
 #define E220_SERIAL_SPEED     9600
 #define E220_AIR_DATA_RATE    ADR_62500
 #define E220_BAUD_RATE        UDR_9600

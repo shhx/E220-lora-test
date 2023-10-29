@@ -34,6 +34,8 @@ class ControllerE220:
     def recv_thread(self):
         print('Starting recv thread')
         while self.connected:
+            if self.ser is None:
+                continue
             if self.ser.in_waiting != 0:
                 data = self.ser.read(self.ser.in_waiting)
                 self._rx_bytes.extend(data)
@@ -59,7 +61,7 @@ class ControllerE220:
         packet_header = PacketHeader.from_buffer_copy(header_bytes)
         if packet_header.header != self._header:
             self._rx_bytes.popleft()
-            print('Invalid header', len(self._rx_bytes))
+            print('Invalid header', len(self._rx_bytes), hex(packet_header.header))
             return None
         if len(self._rx_bytes) < packet_header.length + sizeof(PacketHeader):
             print('Not enough bytes: ', len(self._rx_bytes), packet_header.length + sizeof(PacketHeader))

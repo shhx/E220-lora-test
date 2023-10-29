@@ -37,13 +37,19 @@ def connect(ports, index):
         try:
             controller.connect(ports[index].device, int(baud_rate.get()))
             lost_packets = 0
+            lost_packets_var.set(str(lost_packets))
+            last_seq_num = None
             cnt_button['text'] = 'Disconnect'
+            com_port_combo['state'] = DISABLED
+            baud_rate['state'] = DISABLED
         except Exception as e:
             print(e)
 
     elif cnt_button['text'] == 'Disconnect':
         controller.disconnect()
         cnt_button['text'] = 'Connect'
+        com_port_combo['state'] = NORMAL
+        baud_rate['state'] = NORMAL
 
 root = Tk()
 root.title("E220 LoRa GUI")
@@ -114,7 +120,11 @@ ttk.Label(msg_frame, textvariable=lost_packets_var).pack(side=LEFT)
 # update rssi_var in a thread using controller.get_data()
 def update_rssi():
     global lost_packets, last_seq_num
-    packet = controller.get_data(MessageRSSI, timeout=0)
+    try:
+        packet = controller.get_data(MessageRSSI, timeout=0)
+    except Exception as e:
+        print(e)
+        packet = None
     if packet is not None:
         rssi_var.set(packet.rssi)
         seq_num_var.set(packet.msg.seq_num)
