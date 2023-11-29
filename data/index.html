@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E220 LoRa chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        #settings-box {
+            max-width: 400px;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+
+        #chat-container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 10px;
+        }
+
+        #chat-box {
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fff;
+        }
+
+        #input-box {
+            margin-top: 10px;
+            display: flex;
+        }
+
+        #message-input {
+            flex: 1;
+            padding: 5px;
+            border: 1px solid #ccc;
+        }
+
+        #send-button {
+            padding: 5px 10px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        select {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 10px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-box"></div>
+        <div id="input-box">
+            <input type="text" id="message-input" placeholder="Type your message" onkeyup="handleKeyPress(event)">
+            <button id="send-button" onclick="sendMessage()">Send</button>
+        </div>
+        <div id="settings-box">
+            <label for="power_combo">Tx Power:</label>
+            <select id="power_combo">
+                <option value="0">POWER_30</option>
+                <option value="1">POWER_27</option>
+                <option value="2">POWER_24</option>
+                <option value="3">POWER_21</option>
+            </select>
+
+            <label for="air_speed_combo">Air Speed:</label>
+            <select id="air_speed_combo">
+                <option value="0">AIR_DATA_RATE_000_24</option>
+                <option value="1">AIR_DATA_RATE_001_24</option>
+                <option value="2">AIR_DATA_RATE_010_24</option>
+                <option value="3">AIR_DATA_RATE_011_48</option>
+                <option value="4">AIR_DATA_RATE_100_96</option>
+                <option value="5">AIR_DATA_RATE_101_192</option>
+                <option value="6">AIR_DATA_RATE_110_384</option>
+                <option value="7">AIR_DATA_RATE_111_625</option>
+            </select>
+
+            <label for="uart_speed_combo">UART Speed:</label>
+            <select id="uart_speed_combo">
+                <option value="0">UART_DATA_RATE_1200</option>
+                <option value="1">UART_DATA_RATE_2400</option>
+                <option value="2">UART_DATA_RATE_4800</option>
+                <option value="3">UART_DATA_RATE_9600</option>
+                <option value="4">UART_DATA_RATE_19200</option>
+                <option value="5">UART_DATA_RATE_38400</option>
+                <option value="6">UART_DATA_RATE_57600</option>
+                <option value="7">UART_DATA_RATE_115200</option>
+            </select>
+
+            <button onclick="setSettings()">Set Settings</button>
+        </div>
+    </div>
+
+    <script>
+        // Connect to WebSocket server
+        var gateway = `ws://${window.location.hostname}/ws`;
+        const socket = new WebSocket(gateway);
+
+        // Handle incoming messages
+        socket.addEventListener('message', function(event) {
+            const chatBox = document.getElementById('chat-box');
+            const message = document.createElement('p');
+            message.textContent = event.data;
+            chatBox.appendChild(message);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the bottom
+        });
+
+        // Handle connection opened
+        socket.addEventListener('open', function(event) {
+            console.log('Connected to WebSocket');
+        });
+
+        // Handle connection closed
+        socket.addEventListener('close', function(event) {
+            console.log('WebSocket connection closed');
+        });
+
+        // Function to send a message
+        function sendMessage() {
+            const inputBox = document.getElementById('message-input');
+            const message = inputBox.value;
+
+            if (message.trim() !== '') {
+                if (socket.readyState !== WebSocket.OPEN) {
+                    console.log('WebSocket is not open. Message not sent.');
+                    alert('WebSocket is not open. Message not sent.');
+                    return;
+                }
+                socket.send(message);
+                inputBox.value = '';
+            }
+        }
+
+        function setSettings() {
+            const power_combo = document.getElementById('power_combo');
+            const air_speed_combo = document.getElementById('air_speed_combo');
+            const uart_speed_combo = document.getElementById('uart_speed_combo');
+
+            const power = power_combo.options[power_combo.selectedIndex].value;
+            const air_speed = air_speed_combo.options[air_speed_combo.selectedIndex].value;
+            const uart_speed = uart_speed_combo.options[uart_speed_combo.selectedIndex].value;
+
+            const settings = {
+                power: power,
+                air_speed: air_speed,
+                uart_speed: uart_speed
+            };
+            if (socket.readyState !== WebSocket.OPEN) {
+                console.log('WebSocket is not open. Message not sent.');
+                alert('WebSocket is not open. Message not sent.');
+                return;
+            }
+            socket.send(JSON.stringify(settings));
+        }
+
+        // Handle Enter key press to send a message
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+    </script>
+</body>
+</html>

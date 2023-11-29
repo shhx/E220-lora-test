@@ -1,4 +1,9 @@
 #include <Arduino.h>
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include "SPIFFS.h"
+// #include <ArduinoJson.h>
 #include "E220.h"
 #include "config_e220.h"
 #include "command.h"
@@ -14,8 +19,11 @@
 #define AUX 6
 #define M0 8
 #define M1 7
+#define MAX_TEXT_LEN 20
 
-
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
 E220 radioModule(&Serial0, M0, M1, AUX);
 
 typedef struct  __attribute__((packed)){
@@ -23,13 +31,21 @@ typedef struct  __attribute__((packed)){
 	uint32_t seq_num;
 } Message_t;
 
+typedef struct  __attribute__((packed)){
+	char text[MAX_TEXT_LEN];
+    bool end;
+	uint32_t seq_num;
+} TextMessage_t;
+
 typedef struct __attribute__((packed)){
-    Message_t msg;
+    TextMessage_t msg;
     uint8_t rssi;
 } MessageRSSI_t;
 
 uint32_t seq_num = 0;
 size_t t0 = 0;
+bool ws_connected = true;
+String sensorReadings;
 
 bool e220_default_config(){
     bool success = true;
@@ -54,13 +70,84 @@ bool read_packet_rssi(MessageRSSI_t *packet) {
     return true;
 }
 
-void setup(){
-    //begin all of our UART connections
-    Serial0.begin(E220_SERIAL_SPEED);
-    Serial.begin(115200);
-    // Serial1.begin(E220_SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
+// Initialize SPIFFS
+void initSPIFFS() {
+    if (!SPIFFS.begin(true)) {
+        Serial.println("An error has occurred while mounting SPIFFS");
+    }
+    Serial.println("SPIFFS mounted successfully");
+}
 
-    //initialise the module and check it communicates with us, else loop and keep trying
+// Initialize WiFi
+void initWiFi() {
+    WiFi.mode(WIFI_MODE_AP);
+    // WiFi.setTxPower(WIFI_POWER_8_5dBm);
+    WiFi.setTxPower(WIFI_POWER_MINUS_1dBm);
+    bool ret = WiFi.softAPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
+    ret = WiFi.softAP("ESP32-wtf", "123456789");
+    if (!ret) {
+        Serial.println("Failed to create AP");
+    }
+    // WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    IPAddress IP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(IP);
+}
+
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
+    AwsFrameInfo *info = (AwsFrameInfo*)arg;
+    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+        //data[len] = 0;
+        String message = (char*)data;
+        size_t message_len = message.length();
+        int i = 0;
+        while (message_len > MAX_TEXT_LEN) {
+            TextMessage_t msg = {.end = false, .seq_num = seq_num++};
+            memcpy(msg.text, &message[i], MAX_TEXT_LEN);
+            Serial.print("Sending: ");
+            Serial.println(msg.text);
+            send_packet((uint8_t*)&msg, sizeof(TextMessage_t), PACKET_TYPE_DATA);
+            message_len -= MAX_TEXT_LEN;
+            i += MAX_TEXT_LEN;
+        }
+        TextMessage_t msg = {.end = true, .seq_num = seq_num++};
+        memcpy(msg.text, &message[i], message_len - i);
+        Serial.print("Sending: ");
+        Serial.println(msg.text);
+        send_packet((uint8_t*)&msg, sizeof(TextMessage_t), PACKET_TYPE_DATA);
+    }
+}
+
+void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+    switch (type) {
+        case WS_EVT_CONNECT: 
+            ws_connected = true;
+            Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+            break;
+        case WS_EVT_DISCONNECT:
+            ws_connected = false;
+            Serial.printf("WebSocket client #%u disconnected\n", client->id());
+            break;
+        case WS_EVT_DATA:
+            handleWebSocketMessage(arg, data, len);
+            break;
+        case WS_EVT_PONG:
+        case WS_EVT_ERROR:
+            Serial.println("WebSocket error");
+            break;
+    }
+}
+
+void initWebSocket() {
+    ws.onEvent(onEvent);
+    server.addHandler(&ws);
+}
+
+void setup(){
+    Serial.begin(115200);
+    Serial0.begin(E220_SERIAL_SPEED);
+    // Serial1.begin(E220_SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
+    // initialise the module and check it communicates with us, else loop and keep trying
     while(!radioModule.init()){
         delay(500);
     }
@@ -71,6 +158,18 @@ void setup(){
         Serial.println("Configured");
     }
     radioModule.readBoardData();
+
+    initSPIFFS();
+    initWiFi();
+    initWebSocket();
+    // Web Server Root URL
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println("Request received");
+        request->send(SPIFFS, "/index.html", "text/html");
+    });
+
+    server.serveStatic("/", SPIFFS, "/");
+    server.begin();
     t0 = millis();
 }
 
@@ -79,15 +178,24 @@ void loop(){
     MessageRSSI_t packet = {0};
     size_t t1 = millis();
     if (t1 - t0 > 1000) {
-        packet.msg.seq_num = seq_num++;
-        radioModule.sendFixedData(DESTINATION_ADDL, E220_CHANNEL, (uint8_t*)&packet.msg, sizeof(Message_t), true);
+        // packet.msg.seq_num = seq_num++;
+        // radioModule.sendFixedData(DESTINATION_ADDL, E220_CHANNEL, (uint8_t*)&packet.msg, sizeof(Message_t), true);
         t0 = t1;
     } 
 
     bool ret = parse_cmd(radioModule);
     if(Serial0.available()){
         if(read_packet_rssi(&packet)){
-            send_packet((uint8_t*)&packet, sizeof(MessageRSSI_t), PACKET_TYPE_DATA);
+            if (ws_connected) {
+                String text = String(packet.msg.text);
+                if (packet.msg.end) {
+                    text += "\n";
+                } else {
+                    text += " ";
+                }
+                ws.textAll(text);
+            }
+            // send_packet((uint8_t*)&packet, sizeof(MessageRSSI_t), PACKET_TYPE_DATA);
             // Serial.print("Send time: ");
             // Serial.println(t1 - t0);
         } else {
