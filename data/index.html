@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -55,10 +56,16 @@
             cursor: pointer;
         }
 
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            background-color: #f2f2f2;
+        }
+
+        .sent-message {
+            text-align: right;
+            color: #4caf50;
         }
 
         label {
@@ -81,6 +88,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="chat-container">
         <div id="chat-box"></div>
@@ -121,6 +129,7 @@
                 <option value="7">UART_DATA_RATE_115200</option>
             </select>
 
+            <button onclick="readSettings()">Read Settings</button>
             <button onclick="setSettings()">Set Settings</button>
         </div>
     </div>
@@ -131,21 +140,22 @@
         const socket = new WebSocket(gateway);
 
         // Handle incoming messages
-        socket.addEventListener('message', function(event) {
+        socket.addEventListener('message', function (event) {
             const chatBox = document.getElementById('chat-box');
             const message = document.createElement('p');
+            message.classList.add('message');
             message.textContent = event.data;
             chatBox.appendChild(message);
             chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the bottom
         });
 
         // Handle connection opened
-        socket.addEventListener('open', function(event) {
+        socket.addEventListener('open', function (event) {
             console.log('Connected to WebSocket');
         });
 
         // Handle connection closed
-        socket.addEventListener('close', function(event) {
+        socket.addEventListener('close', function (event) {
             console.log('WebSocket connection closed');
         });
 
@@ -155,13 +165,37 @@
             const message = inputBox.value;
 
             if (message.trim() !== '') {
-                if (socket.readyState !== WebSocket.OPEN) {
-                    console.log('WebSocket is not open. Message not sent.');
-                    alert('WebSocket is not open. Message not sent.');
+                if (!check_connection()) {
                     return;
                 }
+                // Add sent message to the chat box with a different style
+                const chatBox = document.getElementById('chat-box');
+                const sentMessage = document.createElement('p');
+                sentMessage.textContent = message;
+                sentMessage.classList.add('sent-message', 'message');
+                chatBox.appendChild(sentMessage);
+
+                // Auto-scroll to the bottom
+                chatBox.scrollTop = chatBox.scrollHeight;
                 socket.send(message);
                 inputBox.value = '';
+            }
+        }
+
+        function check_connection() {
+            if (socket.readyState !== WebSocket.OPEN) {
+                console.log('WebSocket is not open. Message not sent.');
+                alert('WebSocket is not open. Message not sent.');
+                return false;
+            }
+            return true;
+        }
+
+        // Function to read settings
+        function readSettings() {
+            const settings = {};
+            if(check_connection()){
+                socket.send(JSON.stringify(settings));
             }
         }
 
@@ -179,12 +213,9 @@
                 air_speed: air_speed,
                 uart_speed: uart_speed
             };
-            if (socket.readyState !== WebSocket.OPEN) {
-                console.log('WebSocket is not open. Message not sent.');
-                alert('WebSocket is not open. Message not sent.');
-                return;
+            if (check_connection()) {
+                socket.send(JSON.stringify(settings));
             }
-            socket.send(JSON.stringify(settings));
         }
 
         // Handle Enter key press to send a message
@@ -195,4 +226,5 @@
         }
     </script>
 </body>
+
 </html>
