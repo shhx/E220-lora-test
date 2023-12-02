@@ -1,6 +1,0 @@
-{
-    "files.associations": {
-        "*.service": "shellscript",
-        "cstddef": "cpp"
-    }
-}
