@@ -13,16 +13,6 @@
             background-color: #f4f4f4;
         }
 
-        #settings-box {
-            max-width: 400px;
-            padding: 10px;
-            margin-top: 10px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            background-color: #fff;
-        }
-
         #chat-container {
             max-width: 400px;
             margin: 0 auto;
@@ -56,6 +46,59 @@
             cursor: pointer;
         }
 
+        #settings-modal {
+            display: none;
+            position: relative;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            padding: 20px;
+            background-color: #fff;
+            border: 2px solid #f4f4f4;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            z-index: 2;
+        }
+
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1;
+        }
+
+        #settings-button {
+            cursor: pointer;
+        }
+
+        .settings-box {
+            max-width: 400px;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+
+        .metrics-container {
+            display: flex;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            justify-content: space-between;
+        }
+
+        .fixed-metric {
+            margin-right: 10px;
+            align-items: center;
+            display: flex;
+        }
+
         .message {
             margin: 5px 0;
             padding: 8px;
@@ -68,9 +111,8 @@
             color: #4caf50;
         }
 
-        label {
-            display: block;
-            margin-bottom: 5px;
+        .label-metric {
+            margin-right: 2px;
         }
 
         select {
@@ -96,41 +138,66 @@
             <input type="text" id="message-input" placeholder="Type your message" onkeyup="handleKeyPress(event)">
             <button id="send-button" onclick="sendMessage()">Send</button>
         </div>
-        <div id="settings-box">
-            <label for="power_combo">Tx Power:</label>
-            <select id="power_combo">
-                <option value="0">POWER_30</option>
-                <option value="1">POWER_27</option>
-                <option value="2">POWER_24</option>
-                <option value="3">POWER_21</option>
-            </select>
+        <!-- Button to open settings modal -->
+        <!-- Metrics divs for RSSI, sequence number, and lost packets -->
+        <div class="metrics-container">
+            <button id="settings-button" onclick="openSettings()">Settings</button>
+            <div class="fixed-metric">
+                <label class="label-metric">RSSI: </label>
+                <p id="rssi-value">0</p>
+            </div>
+            <div class="fixed-metric">
+                <label class="label-metric">Seq Number: </label>
+                <p id="seq-number-value">0</p>
+            </div>
+            <div class="fixed-metric">
+                <label class="label-metric">Lost Packets: </label>
+                <p id="lost-packets-value">0</p>
+            </div>
+        </div>
 
-            <label for="air_speed_combo">Air Speed:</label>
-            <select id="air_speed_combo">
-                <option value="0">AIR_DATA_RATE_000_24</option>
-                <option value="1">AIR_DATA_RATE_001_24</option>
-                <option value="2">AIR_DATA_RATE_010_24</option>
-                <option value="3">AIR_DATA_RATE_011_48</option>
-                <option value="4">AIR_DATA_RATE_100_96</option>
-                <option value="5">AIR_DATA_RATE_101_192</option>
-                <option value="6">AIR_DATA_RATE_110_384</option>
-                <option value="7">AIR_DATA_RATE_111_625</option>
-            </select>
+        <!-- Modal Overlay -->
+        <div id="overlay"></div>
 
-            <label for="uart_speed_combo">UART Speed:</label>
-            <select id="uart_speed_combo">
-                <option value="0">UART_DATA_RATE_1200</option>
-                <option value="1">UART_DATA_RATE_2400</option>
-                <option value="2">UART_DATA_RATE_4800</option>
-                <option value="3">UART_DATA_RATE_9600</option>
-                <option value="4">UART_DATA_RATE_19200</option>
-                <option value="5">UART_DATA_RATE_38400</option>
-                <option value="6">UART_DATA_RATE_57600</option>
-                <option value="7">UART_DATA_RATE_115200</option>
-            </select>
+        <!-- Settings Modal -->
+        <div id="settings-modal">
+            <div id="settings-box">
+                <div id="settings-box" class="settings-box">
+                    <label for="power_combo">Tx Power:</label>
+                    <select id="power_combo">
+                        <option value="0">30 dBm</option>
+                        <option value="1">27 dBm</option>
+                        <option value="2">24 dBm</option>
+                        <option value="3">21 dBm</option>
+                    </select>
 
-            <button onclick="readSettings()">Read Settings</button>
-            <button onclick="setSettings()">Set Settings</button>
+                    <label for="air_speed_combo">Air data rate:</label>
+                    <select id="air_speed_combo">
+                        <option value="2">2400</option>
+                        <option value="3">4800</option>
+                        <option value="4">9600</option>
+                        <option value="5">19200</option>
+                        <option value="6">38400</option>
+                        <option value="7">62500</option>
+                    </select>
+
+                    <label for="uart_speed_combo">UART Speed:</label>
+                    <select id="uart_speed_combo">
+                        <option value="0">1200</option>
+                        <option value="1">2400</option>
+                        <option value="2">4800</option>
+                        <option value="3">9600</option>
+                        <option value="4">19200</option>
+                        <option value="5">38400</option>
+                        <option value="6">57600</option>
+                        <option value="7">115200</option>
+                    </select>
+
+                    <button onclick="readSettings()">Read Settings</button>
+                    <button onclick="setSettings()">Set Settings</button>
+                    <button onclick="closeSettings()">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -138,15 +205,27 @@
         // Connect to WebSocket server
         var gateway = `ws://${window.location.hostname}/ws`;
         const socket = new WebSocket(gateway);
+        socket.binaryType = "arraybuffer";
+        var last_seq_number = null;
+        var lost_packets = 0;
 
         // Handle incoming messages
         socket.addEventListener('message', function (event) {
-            const chatBox = document.getElementById('chat-box');
-            const message = document.createElement('p');
-            message.classList.add('message');
-            message.textContent = event.data;
-            chatBox.appendChild(message);
-            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the bottom
+            console.log('Message from server ', event.type, event.data);
+            if (event.data instanceof ArrayBuffer) {
+                let data_view = new DataView(event.data);
+                let rssi = data_view.getUint8(0) - 256;
+                let seq_number = data_view.getUint32(1, true);
+                // const seq_number = data[1];
+                updateMetrics(rssi, seq_number);
+            } else {
+                const chatBox = document.getElementById('chat-box');
+                const message = document.createElement('p');
+                message.classList.add('message');
+                message.textContent = event.data;
+                chatBox.appendChild(message);
+                chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the bottom
+            }
         });
 
         // Handle connection opened
@@ -194,8 +273,18 @@
         // Function to read settings
         function readSettings() {
             const settings = {};
-            if(check_connection()){
-                socket.send(JSON.stringify(settings));
+            if (check_connection()) {
+                fetch('/config')
+                    .then(response => response.json())
+                    .then(data => {
+                        const power_combo = document.getElementById('power_combo');
+                        const air_rate_combo = document.getElementById('air_speed_combo');
+                        const uart_speed_combo = document.getElementById('uart_speed_combo');
+
+                        power_combo.value = data.power;
+                        air_rate_combo.value = data.data_rate;
+                        uart_speed_combo.value = data.uart_speed;
+                    });
             }
         }
 
@@ -208,14 +297,72 @@
             const air_speed = air_speed_combo.options[air_speed_combo.selectedIndex].value;
             const uart_speed = uart_speed_combo.options[uart_speed_combo.selectedIndex].value;
 
-            const settings = {
-                power: power,
-                air_speed: air_speed,
-                uart_speed: uart_speed
-            };
-            if (check_connection()) {
-                socket.send(JSON.stringify(settings));
+            // make post request to /config with param power, data_rate, uart_speed
+            const data = new URLSearchParams();
+            data.append('power', power);
+            data.append('data_rate', air_speed);
+            data.append('uart_speed', uart_speed);
+
+            fetch("/config", {
+                method: 'post',
+                body: data,
+            }).then(response => {
+                if (response.ok) {
+                    console.log('Settings updated');
+                } else {
+                    console.log('Error updating settings');
+                }
+            });
+            closeSettings();
+        }
+
+        // Function to update metrics and display only differences
+        function updateMetrics(rssi, seq_number) {
+            updateMetric('rssi-value', rssi);
+            updateMetric('seq-number-value', seq_number);
+            if (last_seq_number === null) {
+                last_seq_number = seq_number;
+            } else {
+                if (seq_number !== last_seq_number + 1) {
+                    lost_packets += seq_number - last_seq_number - 1;
+                }
+                last_seq_number = seq_number;
             }
+            updateMetric('lost-packets-value', lost_packets);
+        }
+
+        // Function to update a metric div and display only differences
+        function updateMetric(metric_name, currentValue) {
+            const valueElement = document.getElementById(metric_name);
+            valueElement.textContent = currentValue;
+        }
+
+        // Function to open the settings modal
+        function openSettings() {
+            readSettings();
+            const modal = document.getElementById('settings-modal');
+            const overlay = document.getElementById('overlay');
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    closeSettings();
+                }
+            });
+            document.addEventListener('click', function (event) {
+                if (event.target === overlay) {
+                    closeSettings();
+                }
+            });
+
+            modal.style.display = 'block';
+            overlay.style.display = 'block';
+        }
+
+        // Function to close the settings modal
+        function closeSettings() {
+            const modal = document.getElementById('settings-modal');
+            const overlay = document.getElementById('overlay');
+            modal.style.display = 'none';
+            overlay.style.display = 'none';
         }
 
         // Handle Enter key press to send a message

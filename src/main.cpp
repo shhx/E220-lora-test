@@ -9,14 +9,6 @@
 #include "command.h"
 #include "wifi_config.h"
 
-//Define the pins we need to use later to create the object
-// t-display PINS
-// #define AUX 25
-// #define M0 15
-// #define M1 2
-// #define TX_PIN 17
-// #define RX_PIN 22
-
 #define AUX 6
 #define M0 8
 #define M1 7
@@ -28,8 +20,12 @@ AsyncWebSocket ws("/ws");
 E220 radioModule(&Serial0, M0, M1, AUX);
 String rx_message = "";
 size_t last_rx_msg = 0;
+uint32_t dst_addr;
 
-
+typedef struct  __attribute__((packed)){
+    uint8_t rssi;
+    uint32_t seq_num;
+} Heartbeat_t;
 typedef struct  __attribute__((packed)){
 	float temperature;
 	uint32_t seq_num;
@@ -51,9 +47,9 @@ size_t t0 = 0;
 bool ws_connected = true;
 String sensorReadings;
 
-bool e220_default_config(){
+bool e220_default_config(uint32_t address){
     bool success = true;
-    success &= radioModule.setAddress(E220_ADDRESS, true);
+    success &= radioModule.setAddress(address, true);
     success &= radioModule.setAirDataRate(E220_AIR_DATA_RATE, true);
     success &= radioModule.setBaud(E220_BAUD_RATE, true);
     success &= radioModule.setChannel(E220_CHANNEL, true);
@@ -67,8 +63,8 @@ bool e220_default_config(){
 }
 
 bool read_packet_rssi(MessageRSSI_t *packet) {
-    size_t read = Serial0.readBytes((uint8_t*)packet, sizeof(MessageRSSI_t));
-    if (read != sizeof(MessageRSSI_t)) {
+    size_t read = Serial0.readBytes((uint8_t*)packet, sizeof(packet));
+    if (read != sizeof(packet)) {
         return false;
     }
     return true;
@@ -86,9 +82,9 @@ void initSPIFFS() {
 void init_wifi_ap() {
     WiFi.mode(WIFI_MODE_AP);
     WiFi.setTxPower(WIFI_POWER_8_5dBm);
-    // WiFi.setTxPower(WIFI_POWER_MINUS_1dBm);
     bool ret = WiFi.softAPConfig(IPAddress(192, 168, 1, 4), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
-    ret = WiFi.softAP("ESP32-wtf", "123456789");
+    ret = WiFi.softAP("ESP32-" + WiFi.macAddress(), "123456789");
+    // ret = WiFi.softAP("ESP32-0", "123456789");
     if (!ret) {
         Serial.println("Failed to create AP");
     }
@@ -99,6 +95,7 @@ void init_wifi_ap() {
 }
 
 void init_wifi_sta() {
+    WiFi.mode(WIFI_MODE_STA);
     WiFi.begin(SSID, PASS);
     WiFi.setTxPower(WIFI_POWER_8_5dBm);
     Serial.print("Connecting to WiFi");
@@ -115,7 +112,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
     AwsFrameInfo *info = (AwsFrameInfo*)arg;
     if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
         String message = (char*)data;
-        size_t message_len = message.length();
+        size_t message_len = len;
         Serial.print("Message: ");
         Serial.println(message);
         int i = 0;
@@ -124,7 +121,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
             memcpy(msg.text, &message[i], MAX_TEXT_LEN);
             Serial.print("Sending: ");
             Serial.println(msg.text);
-            radioModule.sendFixedData(DESTINATION_ADDL, E220_CHANNEL, (uint8_t*)&msg, sizeof(msg), true);
+            radioModule.sendFixedData(dst_addr, E220_CHANNEL, (uint8_t*)&msg, sizeof(msg), true);
             message_len -= MAX_TEXT_LEN;
             i += MAX_TEXT_LEN;
         }
@@ -132,7 +129,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
         memcpy(msg.text, &message[i], message_len);
         Serial.print("Sending: ");
         Serial.println(msg.text);
-        radioModule.sendFixedData(DESTINATION_ADDL, E220_CHANNEL, (uint8_t*)&msg, sizeof(msg), true);
+        radioModule.sendFixedData(dst_addr, E220_CHANNEL, (uint8_t*)&msg, sizeof(msg), true);
     }
 }
 
@@ -164,12 +161,20 @@ void initWebSocketServer() {
 void setup(){
     Serial.begin(115200);
     Serial0.begin(E220_SERIAL_SPEED);
+    String mac = WiFi.macAddress();
     // Serial1.begin(E220_SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
     // initialise the module and check it communicates with us, else loop and keep trying
     while(!radioModule.init()){
         delay(500);
     }
-    bool ret = e220_default_config();
+    bool ret;
+    if (strcmp(mac.c_str(), MODULE_MAC) == 0) {
+        ret = e220_default_config(ADDRESS[0]);
+        dst_addr = ADDRESS[1];
+    } else {
+        ret = e220_default_config(ADDRESS[1]);
+        dst_addr = ADDRESS[0];
+    }
     if (!ret) {
         Serial.println("Failed to configure");
     } else {
@@ -177,6 +182,8 @@ void setup(){
     }
     radioModule.readBoardData();
     radioModule.printBoardParameters();
+    Serial.print("MAC: ");
+    Serial.println(mac);
 
     initSPIFFS();
     init_wifi_sta();
@@ -185,6 +192,31 @@ void setup(){
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         Serial.println("Request received");
         request->send(SPIFFS, "/index.html", "text/html");
+    });
+
+    server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request) {
+        int power = radioModule.getPower();
+        int data_rate = radioModule.getAirDataRate();
+        int uart_speed = radioModule.getBaud();
+        String json = "{\"power\": " + String(power) + ", \"data_rate\": " + String(data_rate) + ", \"uart_speed\": " + String(uart_speed) + "}";
+        request->send(200, "application/json", json);
+    });
+
+    server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request) {
+        Serial.println("Request received");
+        if (request->hasParam("power", true)) {
+            int power = request->getParam("power", true)->value().toInt();
+            radioModule.setPower(power, true);
+        }
+        if (request->hasParam("data_rate", true)) {
+            int data_rate = request->getParam("data_rate", true)->value().toInt();
+            radioModule.setAirDataRate(data_rate, true);
+        }
+        if (request->hasParam("uart_speed", true)) {
+            int uart_speed = request->getParam("uart_speed", true)->value().toInt();
+            radioModule.setBaud(uart_speed, true);
+        }
+        request->send(200, "text/plain", "OK");
     });
 
     server.serveStatic("/", SPIFFS, "/");
@@ -196,11 +228,14 @@ void setup(){
 void loop(){
     MessageRSSI_t packet = {0};
     size_t t1 = millis();
-    if (t1 - t0 > 1000) {
-        // packet.msg.seq_num = seq_num++;
-        // radioModule.sendFixedData(DESTINATION_ADDL, E220_CHANNEL, (uint8_t*)&packet.msg, sizeof(Message_t), true);
-        t0 = t1;
-    } 
+    // if (t1 - t0 > 2000) {
+    //     // packet.msg.seq_num = seq_num++;
+    //     TextMessage_t msg = {.end = true, .seq_num = seq_num++};
+    //     msg.text[0] = '\0';
+    //     radioModule.sendFixedData(dst_addr, E220_CHANNEL, (uint8_t*)&msg, sizeof(msg), true);
+    //     Serial.println("Sending heartbeat");
+    //     t0 = t1;
+    // } 
 
     bool ret = parse_cmd(radioModule);
     if(Serial0.available()){
@@ -208,13 +243,19 @@ void loop(){
         last_rx_msg = millis();
         if (read_packet_rssi(&packet)) {
             Serial.print("New packet: ");
-            Serial.println(packet.msg.text);
+            Serial.println(packet.msg.text + String(" RSSI: ") + packet.rssi);
             if (ws_connected) {
-                rx_message += packet.msg.text;
-                if (packet.msg.end) {
-                    ws.textAll(rx_message);
-                    rx_message = "";
+                Heartbeat_t hb = {.rssi = packet.rssi, .seq_num = packet.msg.seq_num};
+                ws.binaryAll((uint8_t*)&hb, sizeof(Heartbeat_t));
+                if (packet.msg.text[0] != '\0') {
+                    rx_message += packet.msg.text;
+                    if (packet.msg.end) {
+                        ws.textAll(rx_message);
+                        rx_message = "";
+                    }
                 }
+            } else {
+                Serial.println("WebSocket not connected");
             }
         } else {
             Serial.println("Failed to read packet");
