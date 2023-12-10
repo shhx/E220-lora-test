@@ -26,13 +26,9 @@ typedef struct  __attribute__((packed)){
     uint8_t rssi;
     uint32_t seq_num;
 } Heartbeat_t;
-typedef struct  __attribute__((packed)){
-	float temperature;
-	uint32_t seq_num;
-} Message_t;
 
 typedef struct  __attribute__((packed)){
-	char text[MAX_TEXT_LEN];
+	char text[MAX_TEXT_LEN + 1];
     bool end;
 	uint32_t seq_num;
 } TextMessage_t;
@@ -63,8 +59,8 @@ bool e220_default_config(uint32_t address){
 }
 
 bool read_packet_rssi(MessageRSSI_t *packet) {
-    size_t read = Serial0.readBytes((uint8_t*)packet, sizeof(packet));
-    if (read != sizeof(packet)) {
+    size_t read = Serial0.readBytes((uint8_t*)packet, sizeof(MessageRSSI_t));
+    if (read != sizeof(MessageRSSI_t)) {
         return false;
     }
     return true;
