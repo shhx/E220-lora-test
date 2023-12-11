@@ -20,7 +20,7 @@
         }
 
         #chat-box {
-            height: 400px;
+            height: 75vh;
             overflow-y: scroll;
             border: 1px solid #ccc;
             padding: 10px;
@@ -28,7 +28,7 @@
         }
 
         #input-box {
-            margin-top: 10px;
+            margin-top: 6px;
             display: flex;
         }
 
@@ -43,7 +43,6 @@
             background-color: #4caf50;
             color: #fff;
             border: none;
-            cursor: pointer;
         }
 
         #settings-modal {
@@ -87,13 +86,14 @@
 
         .metrics-container {
             display: flex;
-            margin-top: 10px;
+            margin-top: 5px;
             border: 1px solid #ccc;
             border-radius: 3px;
             justify-content: space-between;
         }
 
         .fixed-metric {
+            font-size: 13px;
             margin-right: 10px;
             align-items: center;
             display: flex;
@@ -104,12 +104,13 @@
             padding: 8px;
             border-radius: 5px;
             background-color: #f2f2f2;
+            word-wrap: break-word;
         }
 
         .sent-message {
             text-align: right;
-            color: #4caf50;
-            word-wrap: break-word;
+            color: #000000;
+            background-color: #85dd8aa3;;
         }
 
         .label-metric {
@@ -123,7 +124,7 @@
         }
 
         button {
-            padding: 10px;
+            padding: 8px;
             background-color: #4caf50;
             color: #fff;
             border: none;
@@ -145,15 +146,15 @@
             <button id="settings-button" onclick="openSettings()">Settings</button>
             <div class="fixed-metric">
                 <label class="label-metric">RSSI: </label>
-                <p id="rssi-value">0</p>
+                <label id="rssi-value">0</label>
             </div>
             <div class="fixed-metric">
                 <label class="label-metric">Seq Number: </label>
-                <p id="seq-number-value">0</p>
+                <label id="seq-number-value">0</label>
             </div>
             <div class="fixed-metric">
                 <label class="label-metric">Lost Packets: </label>
-                <p id="lost-packets-value">0</p>
+                <label id="lost-packets-value">0</label>
             </div>
         </div>
 
